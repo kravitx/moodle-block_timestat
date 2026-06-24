@@ -27,7 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 $capabilities = [
     'block/timestat:view' => [
         'captype' => 'read',
-        'contextlevel' => CONTEXT_BLOCK,
+        'contextlevel' => CONTEXT_COURSE,
         'archetypes' => [
             'guest' => CAP_PREVENT,
             'user' => CAP_PREVENT,
@@ -40,7 +40,7 @@ $capabilities = [
     ],
     'block/timestat:viewreport' => [
         'captype' => 'read',
-        'contextlevel' => CONTEXT_BLOCK,
+        'contextlevel' => CONTEXT_COURSE,
         'archetypes' => [
             'guest' => CAP_PREVENT,
             'user' => CAP_PREVENT,
@@ -53,7 +53,7 @@ $capabilities = [
     ],
     'block/timestat:viewtimer' => [
         'captype' => 'read',
-        'contextlevel' => CONTEXT_BLOCK,
+        'contextlevel' => CONTEXT_COURSE,
         'archetypes' => [
             'guest' => CAP_PREVENT,
             'user' => CAP_PREVENT,

@@ -55,23 +55,30 @@ class block_timestat extends block_base {
         if ($this->content !== null) {
             return $this->content;
         }
-        $contextid = $this->page->cm ? $this->page->cm->context->id : $this->page->context->id;
-        $context = context_block::instance($this->instance->id);
-        $userisenrolled = is_enrolled($context);
+        $coursecontext = context_course::instance($COURSE->id);
         $config = get_config('block_timestat');
         $this->content = new stdClass();
         $this->content->text = '';
-        $canseetimer = has_capability('block/timestat:viewtimer', $context);
+        if (!has_capability('block/timestat:view', $coursecontext)) {
+            return $this->content;
+        }
+
+        $userisenrolled = is_enrolled($coursecontext, $USER, '', true);
+        $canseetimer = has_capability('block/timestat:viewtimer', $coursecontext);
         $data = new stdClass();
         $data->courseid = $COURSE->id;
         $data->shouldseetimer = $userisenrolled && ($canseetimer || ($config->showtimer ?? false));
         $data->initialseconds = block_timestat_get_user_course_timespent($COURSE->id, $USER->id);
-        $data->shouldseereport = has_capability('block/timestat:viewreport', $context);
+        $data->initialtimestring = block_timestat_seconds_to_stringtime($data->initialseconds);
+        $data->shouldseereport = has_capability('block/timestat:viewreport', $coursecontext);
         $this->content->text = $OUTPUT->render_from_template('block_timestat/main', $data);
-        // If the user is not enrolled in the course, we don't want to count the time.
-        if ($userisenrolled) {
-            $this->page->requires->js_call_amd('block_timestat/event_emiiter', 'init', [$contextid, $config]);
+
+        // Fallback for pages where the global hook is not available.
+        $tracking = block_timestat_build_tracking_payload($this->page, $USER->id);
+        if ($tracking !== null) {
+            $this->page->requires->js_call_amd('block_timestat/event_emiiter', 'init', [$tracking]);
         }
+
         return $this->content;
     }
 

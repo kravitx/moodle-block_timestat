@@ -13,19 +13,26 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-/**
- *
- * Version details for the timestat block.
- *
- * @package    block_timestat
- * @copyright  2010 onwards Barbara Dębska, Łukasz Musiał, Łukasz Sanokowski
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2024101403;
-$plugin->component = 'block_timestat';
-$plugin->maturity   = MATURITY_STABLE;
-$plugin->requires = 2021051700;
-$plugin->release = '2.0.4';
+require_once(__DIR__ . '/locallib.php');
+
+/**
+ * Inject tracking before the footer when the current page is trackable.
+ *
+ * @return string
+ */
+function block_timestat_before_footer(): string {
+    return block_timestat_render_tracking_bootstrap();
+}
+
+/**
+ * Fallback hook for renderers that print content before the body.
+ *
+ * @return string
+ */
+function block_timestat_before_standard_top_of_body_html(): string {
+    return block_timestat_render_tracking_bootstrap();
+}
+

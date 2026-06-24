@@ -13,19 +13,18 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-/**
- *
- * Version details for the timestat block.
- *
- * @package    block_timestat
- * @copyright  2010 onwards Barbara Dębska, Łukasz Musiał, Łukasz Sanokowski
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+
+use block_timestat\hook_callbacks;
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2024101403;
-$plugin->component = 'block_timestat';
-$plugin->maturity   = MATURITY_STABLE;
-$plugin->requires = 2021051700;
-$plugin->release = '2.0.4';
+$callbacks = [
+    [
+        'hook' => \core\hook\output\before_standard_top_of_body_html_generation::class,
+        'callback' => hook_callbacks::class . '::before_standard_top_of_body_html_generation',
+    ],
+    [
+        'hook' => \core\hook\output\before_standard_footer_html_generation::class,
+        'callback' => hook_callbacks::class . '::before_standard_footer_html_generation',
+    ],
+];

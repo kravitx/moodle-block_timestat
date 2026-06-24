@@ -38,6 +38,7 @@ use external_value;
 use external_single_structure;
 use invalid_parameter_exception;
 use moodle_exception;
+use context_course;
 
 /**
  * This is the external API for this component.
@@ -75,26 +76,31 @@ class external extends external_api {
     public static function update_register(int $timespent, int $contextid): array {
         global $DB, $USER;
 
-        $context = context::instance_by_id($contextid);
-        self::validate_context($context);
         $params = self::validate_parameters(
                 self::update_register_parameters(),
                 ['timespent' => $timespent, 'contextid' => $contextid]
         );
         $log = block_timestat_get_user_last_log_by_contextid($contextid);
-        if ($log->userid !== $USER->id) {
-            throw new moodle_exception('You are not allowed to update this log');
+        if (!$log || (int)$log->userid !== (int)$USER->id) {
+            throw new moodle_exception('notrackinglog', 'block_timestat');
         }
+        $coursecontext = context_course::instance($log->courseid);
+        self::validate_context($coursecontext);
+        require_capability('block/timestat:view', $coursecontext);
+
+        $maxinterval = block_timestat_get_max_reportable_seconds();
+        $timespent = max(0, min($params['timespent'], $maxinterval));
+
         $recordtimestat = $DB->get_record('block_timestat', ['log_id' => $log->id]);
 
         if (!$recordtimestat) {
             $recordbt = new \stdClass();
             $recordbt->log_id = $log->id;
-            $recordbt->timespent = $params['timespent'];
+            $recordbt->timespent = $timespent;
             $DB->insert_record('block_timestat', $recordbt);
             return [];
         }
-        $recordtimestat->timespent = $params['timespent'];
+        $recordtimestat->timespent = $timespent;
         $DB->update_record('block_timestat', $recordtimestat);
         return [];
     }

@@ -9,15 +9,28 @@
 import ScreenTime from 'block_timestat/screentime';
 import ajax from 'core/ajax';
 
-export const init = (contextid, config) => {
-    const reportInterval = getReportInterval(config);
-    const inactiveInterval = getInactiveInterval(config);
+export const init = (trackingData, legacyConfig = null) => {
+    const payload = normalizePayload(trackingData, legacyConfig);
+    if (!payload || !payload.contextid) {
+        return;
+    }
 
-    const $timerDisplay = config.showtimer ? document.querySelector('.timer-display') : null;
+    window.blockTimestatTracker = window.blockTimestatTracker || {};
+    if (window.blockTimestatTracker[payload.contextid]) {
+        return;
+    }
+    window.blockTimestatTracker[payload.contextid] = true;
+
+    const reportInterval = getReportInterval(payload.config || {});
+    const inactiveInterval = getInactiveInterval(payload.config || {});
+
+    const $timerDisplay = payload.showtimer ? document.querySelector('.timer-display') : null;
     const $timer = document.getElementById('timer');
     const $reportedtime = document.getElementById('reportedtime');
     const $inactivitytime = document.getElementById('inactivitytime');
-    const initialSeconds = $timer ? parseInt($timer.dataset.initialSeconds || '0', 10) : 0;
+    const initialSeconds = Number.isInteger(payload.initialseconds) ?
+        payload.initialseconds :
+        ($timer ? parseInt($timer.dataset.initialSeconds || '0', 10) : 0);
 
     const inactiveClass = 'text-black-50';
     const screentime = new ScreenTime({
@@ -29,7 +42,7 @@ export const init = (contextid, config) => {
                 return;
             }
             const timespent = log.body;
-            const contextIdInt = parseInt(contextid, 10);
+            const contextIdInt = parseInt(payload.contextid, 10);
             try {
                 await ajax.call([{
                     methodname: 'block_timestat_update_register',
@@ -70,6 +83,21 @@ export const init = (contextid, config) => {
             $timerDisplay.classList.remove(inactiveClass);
         }
     });
+};
+
+const normalizePayload = (trackingData, legacyConfig) => {
+    if (typeof trackingData === 'object' && trackingData !== null && !Array.isArray(trackingData)) {
+        return {
+            ...trackingData,
+            config: trackingData.config || {}
+        };
+    }
+
+    return {
+        contextid: parseInt(trackingData, 10),
+        config: legacyConfig || {},
+        showtimer: !!(legacyConfig && legacyConfig.showtimer)
+    };
 };
 
 const formatTime = (seconds) => {

@@ -56,7 +56,7 @@ if (!defined('REPORT_LOG_MAX_DISPLAY')) {
  */
 function block_timestat_report_log_print_mnet_selector_form($hostid, $course, $selecteduser = 0, $selecteddatefrom = 'today',
         $selecteddateto = 'today', $modid = 0, $selectedgroup = -1, $showcourses = 0,
-        $showusers = 0, $logformat = 'showashtml'): void {
+        $showusers = 0, $logformat = 'showashtml', $sort = 'timespent_desc'): void {
 
     global $USER, $CFG, $SITE, $DB, $SESSION;
     require_once($CFG->dirroot . '/mnet/peer.php');
@@ -339,9 +339,13 @@ function block_timestat_report_log_print_mnet_selector_form($hostid, $course, $s
     echo html_writer::label(get_string('actions'), 'menumodaction', false, ['class' => 'accesshide']);
 
     $logformats = ['showashtml' => get_string('displayonpage'),
-            'downloadasexcel' => get_string('downloadexcel')];
+            'downloadasexcel' => get_string('downloadexcel'),
+            'downloadascsv' => get_string('downloadtext')];
+    $sortoptions = block_timestat_get_sort_options();
     echo html_writer::label(get_string('logsformat', 'report_log'), 'menulogformat', false, ['class' => 'accesshide']);
     echo html_writer::select($logformats, 'logformat', $logformat, false);
+    echo html_writer::label(get_string('sortby', 'block_timestat'), 'menusort', false, ['class' => 'accesshide']);
+    echo html_writer::select($sortoptions, 'sort', $sort, false);
     $mform = new block_timestat_calendar();
     $mform->set_data(['datefrom' => $selecteddatefrom]);
     $mform->set_data(['dateto' => $selecteddateto]);
@@ -370,7 +374,7 @@ function block_timestat_report_log_print_mnet_selector_form($hostid, $course, $s
  */
 function block_timestat_report_log_print_selector_form($course, $selecteduser = 0, $selecteddate = 'today', $modid = 0,
         $selectedgroup = -1, $showcourses = 0, $showusers = 0,
-        $logformat = 'showashtml') {
+        $logformat = 'showashtml', $sort = 'timespent_desc') {
 
     global $USER, $CFG, $DB, $SESSION;
 
@@ -559,7 +563,7 @@ function block_timestat_report_log_print_selector_form($course, $selecteduser = 
     }
 
     if ($showusers) {
-        echo html_writer::label(get_string('selctauser'), 'menuuser', false, ['class' => 'accesshide']);
+        echo html_writer::label(get_string('selectauser', 'block_timestat'), 'menuuser', false, ['class' => 'accesshide']);
         echo html_writer::select($users, "user", $selecteduser, get_string("allparticipants"));
     } else {
         $users = [];
@@ -569,7 +573,7 @@ function block_timestat_report_log_print_selector_form($course, $selecteduser = 
         } else {
             $users[0] = get_string('allparticipants');
         }
-        echo html_writer::label(get_string('selctauser'), 'menuuser', false, ['class' => 'accesshide']);
+        echo html_writer::label(get_string('selectauser', 'block_timestat'), 'menuuser', false, ['class' => 'accesshide']);
         echo html_writer::select($users, "user", $selecteduser, false);
         $a = new stdClass();
         $a->url = "$CFG->wwwroot/blocks/timestat/index.php?chooselog=0&group=$selectedgroup&user=$selecteduser"
@@ -582,10 +586,14 @@ function block_timestat_report_log_print_selector_form($course, $selecteduser = 
     echo html_writer::label(get_string('actions'), 'menumodaction', false, ['class' => 'accesshide']);
 
     $logformats = ['showashtml' => get_string('displayonpage'),
-            'downloadasexcel' => get_string('downloadexcel')];
+            'downloadasexcel' => get_string('downloadexcel'),
+            'downloadascsv' => get_string('downloadtext')];
+    $sortoptions = block_timestat_get_sort_options();
 
     echo html_writer::label(get_string('logsformat', 'report_log'), 'menulogformat', false, ['class' => 'accesshide']);
     echo html_writer::select($logformats, 'logformat', $logformat, false);
+    echo html_writer::label(get_string('sortby', 'block_timestat'), 'menusort', false, ['class' => 'accesshide']);
+    echo html_writer::select($sortoptions, 'sort', $sort, false);
     $mform = new block_timestat_calendar();
     $mform->set_data(['datefrom' => $course->startdate]);
     $mform->display();
@@ -790,10 +798,11 @@ function block_timestat_build_logs_array($course, $user = 0, $datefrom = 0, $dat
         $enddate = $datefrom + 86400;
         $joins[] = "l.timecreated > :date AND l.timecreated < :enddate";
         $params['date'] = $datefrom;
-        $params['enddate'] = $dateto;
+        $params['enddate'] = $dateto ?: $enddate;
     }
 
     $selector = implode(' AND ', $joins);
+    $params['_ordersql'] = $order;
     $totalcount = 0;  // Initialise.
     $result = [];
     $result['logs'] = block_timestat_get_logs($selector, $totalcount, $params, $limitfrom, $limitnum);
@@ -811,7 +820,7 @@ function block_timestat_build_logs_array($course, $user = 0, $datefrom = 0, $dat
  * @param int $limitnum return a subset comprising this many records (optional, required if $limitfrom is set)
  * @return array
  */
-function block_timestat_get_logs($select, &$totalcount, array $params = null, $limitfrom = 0, $limitnum = 0) {
+function block_timestat_get_logs($select, &$totalcount, array $params = [], $limitfrom = 0, $limitnum = 0) {
 
     global $DB, $CFG;
 
@@ -820,6 +829,8 @@ function block_timestat_get_logs($select, &$totalcount, array $params = null, $l
     $userid = "";
     $andcount = "";
     $userid = $params['userid'] ?? 0;
+    $ordersql = $params['_ordersql'] ?? 'timespent DESC';
+    unset($params['_ordersql']);
 
     if ($CFG->dbtype != 'mysqli') {
         $select = str_replace('l.', 'l2.', $select);
@@ -855,14 +866,14 @@ function block_timestat_get_logs($select, &$totalcount, array $params = null, $l
         WHERE
         (SELECT SUM(f2.timespent) FROM {logstore_standard_log} l2
         JOIN {block_timestat} f2 ON f2.log_id = l2.id WHERE l2.userid =  l.userid
-        ) > 0 $useridselect ORDER BY timespent DESC
+        ) > 0 $useridselect ORDER BY $ordersql
         ";
     } else {
         $sql = "SELECT l.userid, SUM(bt.timespent) as timespent, $allusernamefields
         FROM {logstore_standard_log} l
         LEFT JOIN {user} u ON l.userid = u.id RIGHT JOIN {block_timestat} bt ON l.id = bt.log_id
         $select
-        GROUP BY l.userid ORDER BY timespent DESC
+        GROUP BY l.userid, $allusernamefields ORDER BY $ordersql
         ";
     }
     $results = $DB->get_records_sql($sql, $params, $limitfrom, $limitnum);
@@ -974,6 +985,7 @@ function block_timestat_print_log_xls($course, $user, $datefrom, $dateto, $modna
     $row = FIRSTUSEDEXCELROW;
     $wsnumber = 1;
     $myxls = $worksheet[$wsnumber];
+    $showfullnames = has_capability('moodle/site:viewfullnames', context_course::instance($course->id));
     foreach ($logs['logs'] as $log) {
 
         if ($nropages > 1 && $row > EXCELROWS) {
@@ -982,13 +994,89 @@ function block_timestat_print_log_xls($course, $user, $datefrom, $dateto, $modna
             $row = FIRSTUSEDEXCELROW;
         }
 
-        $fullname = $log->firstname . " " . $log->lastname;
+        $fullname = fullname($log, $showfullnames);
         $myxls->write($row, 0, $fullname, '');
         $myxls->write($row, 1, block_timestat_seconds_to_stringtime($log->{'timespent'}), '');
         $row++;
     }
     $workbook->close();
     return true;
+}
+
+/**
+ * Function to print the log in CSV format.
+ *
+ * @param stdClass $course
+ * @param int $user
+ * @param int $datefrom
+ * @param int $dateto
+ * @param string $modname
+ * @param int $modid
+ * @param string $modaction
+ * @param int $groupid
+ * @param string $order
+ * @return bool
+ * @throws coding_exception
+ */
+function block_timestat_print_log_csv($course, $user, $datefrom, $dateto, $modname, $modid, $modaction, $groupid,
+        $order = 'timespent DESC') {
+    global $CFG;
+
+    require_once("$CFG->libdir/csvlib.class.php");
+
+    if (!$logs = block_timestat_build_logs_array($course, $user, $datefrom, $dateto, $order, '', '',
+            $modname, $modid, $modaction, $groupid)) {
+        return false;
+    }
+
+    $csvexport = new csv_export_writer();
+    $csvexport->set_filename('timestat_logs');
+    $csvexport->add_data([get_string('fullnameuser'), get_string('time')]);
+    $showfullnames = has_capability('moodle/site:viewfullnames', context_course::instance($course->id));
+
+    if (empty($logs['logs'])) {
+        $csvexport->download_file();
+        return true;
+    }
+
+    foreach ($logs['logs'] as $log) {
+        $csvexport->add_data([
+            fullname($log, $showfullnames),
+            block_timestat_seconds_to_stringtime($log->timespent),
+        ]);
+    }
+
+    $csvexport->download_file();
+    return true;
+}
+
+/**
+ * Allowed sort options exposed in the report UI.
+ *
+ * @return array
+ */
+function block_timestat_get_sort_options(): array {
+    return [
+        'timespent_desc' => get_string('sort_timespent_desc', 'block_timestat'),
+        'lastname_asc' => get_string('sort_lastname_asc', 'block_timestat'),
+        'firstname_asc' => get_string('sort_firstname_asc', 'block_timestat'),
+    ];
+}
+
+/**
+ * Map a UI sort key to a safe SQL ORDER BY fragment.
+ *
+ * @param string $sort
+ * @return string
+ */
+function block_timestat_get_sort_sql(string $sort): string {
+    $allowed = [
+        'timespent_desc' => 'timespent DESC, lastname ASC, firstname ASC',
+        'lastname_asc' => 'lastname ASC, firstname ASC, timespent DESC',
+        'firstname_asc' => 'firstname ASC, lastname ASC, timespent DESC',
+    ];
+
+    return $allowed[$sort] ?? $allowed['timespent_desc'];
 }
 
 /**
@@ -1059,9 +1147,100 @@ function block_timestat_get_user_course_timespent(int $courseid, int $userid): i
  * @param int $contextid
  * @throws dml_exception
  */
-function block_timestat_get_user_last_log_by_contextid(int $contextid): stdClass {
+function block_timestat_get_user_last_log_by_contextid(int $contextid): ?stdClass {
     global $DB, $USER;
     $logs = $DB->get_records('logstore_standard_log',
             ['contextid' => $contextid, 'userid' => $USER->id], 'timecreated DESC', '*', 0, 1);
-    return reset($logs);
+    $log = reset($logs);
+    return $log ?: null;
+}
+
+/**
+ * Build the data payload used by the AMD tracker.
+ *
+ * @param moodle_page|null $page
+ * @param int|null $userid
+ * @return array|null
+ * @throws coding_exception
+ * @throws dml_exception
+ */
+function block_timestat_build_tracking_payload(?moodle_page $page = null, ?int $userid = null): ?array {
+    global $PAGE, $USER;
+
+    $page = $page ?? $PAGE;
+    $userid = $userid ?? (int)$USER->id;
+    if (empty($userid) || !isloggedin() || isguestuser()) {
+        return null;
+    }
+
+    if (empty($page->course) || empty($page->course->id) || (int)$page->course->id === SITEID) {
+        return null;
+    }
+
+    $coursecontext = context_course::instance($page->course->id);
+    if (!has_capability('block/timestat:view', $coursecontext)) {
+        return null;
+    }
+
+    if (!is_enrolled($coursecontext, $USER, '', true)) {
+        return null;
+    }
+
+    $trackingcontext = !empty($page->cm) ? $page->cm->context : $coursecontext;
+    $config = get_config('block_timestat');
+
+    return [
+        'contextid' => (int)$trackingcontext->id,
+        'courseid' => (int)$page->course->id,
+        'initialseconds' => block_timestat_get_user_course_timespent((int)$page->course->id, $userid),
+        'showtimer' => (bool)($config->showtimer ?? false),
+        'config' => [
+            'showtimer' => (bool)($config->showtimer ?? false),
+            'loginterval' => (int)($config->loginterval ?? 10),
+            'inactivitytime' => (int)($config->inactivitytime ?? 30),
+            'inactivitytime_small' => (int)($config->inactivitytime_small ?? 30),
+        ],
+    ];
+}
+
+/**
+ * Render the inline bootstrap that starts tracking outside block rendering.
+ *
+ * @param moodle_page|null $page
+ * @return string
+ * @throws coding_exception
+ * @throws dml_exception
+ */
+function block_timestat_render_tracking_bootstrap(?moodle_page $page = null): string {
+    static $trackingrendered = false;
+
+    if ($trackingrendered) {
+        return '';
+    }
+
+    $payload = block_timestat_build_tracking_payload($page);
+    if ($payload === null) {
+        return '';
+    }
+
+    $jsonpayload = json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    if ($jsonpayload === false) {
+        return '';
+    }
+
+    $trackingrendered = true;
+    $script = "require(['block_timestat/event_emiiter'], function(module) { module.init($jsonpayload); });";
+    return html_writer::script($script);
+}
+
+/**
+ * Get the maximum number of seconds that can be accepted in a single report.
+ *
+ * @return int
+ */
+function block_timestat_get_max_reportable_seconds(): int {
+    $config = get_config('block_timestat');
+    $loginterval = (int)($config->loginterval ?? 10);
+    $loginterval = max(10, $loginterval);
+    return $loginterval * 2;
 }

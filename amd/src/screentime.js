@@ -55,6 +55,7 @@ export default class ScreenTime {
         this.inactivityTimer = 0;
         this.lastReport = 0;
         this.reportInterval = this.options.reportInterval * 1000;
+        this.activityListenersBound = false;
         document.addEventListener("visibilitychange", this.handleVisibilityChange.bind(this));
         window.addEventListener('scroll', this.updateViewport.bind(this));
         window.addEventListener('resize', this.updateViewport.bind(this));
@@ -104,6 +105,9 @@ export default class ScreenTime {
     }
 
     addActivityListeners() {
+        if (this.activityListenersBound) {
+            return;
+        }
         const events = ['click', 'scroll', 'mousemove', 'keypress', 'touchstart', 'touchmove', 'wheel'];
         const inactivityEvents = ['beforeunload', 'unload', 'pagehide', 'blur'];
         events.forEach(event => {
@@ -112,6 +116,7 @@ export default class ScreenTime {
         inactivityEvents.forEach(event => {
             window.addEventListener(event, () => this.handleInactivity());
         });
+        this.activityListenersBound = true;
     }
 
     resetInactivityTimer() {
@@ -152,7 +157,7 @@ export default class ScreenTime {
 
     report() {
         const elapsed = Date.now() - this.lastReport;
-        const shouldReport = elapsed >= 10;
+        const shouldReport = elapsed >= this.reportInterval;
         if (!shouldReport) {
             return;
         }

@@ -80,6 +80,7 @@ $showcourses = optional_param('showcourses', 0, PARAM_INT);
 $showusers = optional_param('showusers', 0, PARAM_INT);
 $chooselog = optional_param('chooselog', 0, PARAM_INT);
 $logformat = optional_param('logformat', 'showashtml', PARAM_ALPHA);
+$sort = optional_param('sort', 'timespent_desc', PARAM_ALPHANUMEXT);
 
 $params = [];
 if ($id !== 0) {
@@ -129,6 +130,9 @@ if ($chooselog !== 0) {
 if ($logformat !== 'showashtml') {
     $params['logformat'] = $logformat;
 }
+if ($sort !== 'timespent_desc') {
+    $params['sort'] = $sort;
+}
 $PAGE->set_url('/block/timestat/index.php', $params);
 $PAGE->set_pagelayout('report');
 
@@ -166,6 +170,7 @@ manager::write_close();
 if (!empty($chooselog)) {
     $userinfo = get_string('allparticipants');
     $dateinfo = get_string('alldays');
+    $datefrominfo = $dateinfo;
 
     if ($user) {
         $u = $DB->get_record('user', ['id' => $user, 'deleted' => 0], '*', MUST_EXIST);
@@ -181,7 +186,14 @@ if (!empty($chooselog)) {
     switch ($logformat) {
         case 'downloadasexcel':
             if (!block_timestat_print_log_xls($course, $user, $datefrom, $dateto, $modname, $modid,
-                    $modaction, $group, 'l.time DESC')) {
+                    $modaction, $group, block_timestat_get_sort_sql($sort))) {
+                echo $OUTPUT->notification(get_string('nologs', 'block_timestat'));
+                echo $OUTPUT->footer();
+            }
+            exit;
+        case 'downloadascsv':
+            if (!block_timestat_print_log_csv($course, $user, $datefrom, $dateto, $modname, $modid,
+                    $modaction, $group, block_timestat_get_sort_sql($sort))) {
                 echo $OUTPUT->notification(get_string('nologs', 'block_timestat'));
                 echo $OUTPUT->footer();
             }
@@ -203,12 +215,12 @@ if (!empty($chooselog)) {
 
             echo $OUTPUT->heading(format_string($course->fullname) . ": $userinfo, $datefrominfo (" . usertimezone() . ")");
             block_timestat_report_log_print_mnet_selector_form($hostid, $course, $user, $datefrom, $dateto, $modid, $group,
-                    $showcourses, $showusers, $logformat);
+                    $showcourses, $showusers, $logformat, $sort);
 
             if ($hostid == $CFG->mnet_localhost_id) {
-                block_timestat_print_log($course, $user, $datefrom, $dateto, 'l.timecreated DESC', $page, $perpage,
+                block_timestat_print_log($course, $user, $datefrom, $dateto, block_timestat_get_sort_sql($sort), $page, $perpage,
                         "index.php?id=$course->id&amp;chooselog=1&amp;user=$user&amp;datefrom=$datefrom&amp;dateto=$dateto&amp;
-                        modid=$modid&amp;modaction=$modaction&amp;group=$group",
+                        modid=$modid&amp;modaction=$modaction&amp;group=$group&amp;sort=$sort",
                         $modname, $modid, $modaction, $group);
             } else {
                 block_timestat_print_mnet_log(
@@ -231,8 +243,8 @@ if (!empty($chooselog)) {
 
     echo $OUTPUT->heading(get_string('chooselogs') . ':');
 
-    block_timestat_report_log_print_selector_form($course, $user, $datefrom, $modname, $modaction,
-            $group, $showcourses, $showusers);
+    block_timestat_report_log_print_selector_form($course, $user, $datefrom, $modid, $group, $showcourses, $showusers,
+            $logformat, $sort);
 }
 
 echo $OUTPUT->footer();

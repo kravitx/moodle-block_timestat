@@ -4,7 +4,6 @@ namespace block_timestat\privacy;
 
 use coding_exception;
 use context;
-use context_block;
 use core_privacy\local\metadata\collection;
 use core_privacy\local\request\{approved_contextlist, approved_userlist, contextlist, core_userlist_provider, transform, userlist, writer};
 use dml_exception;
@@ -29,14 +28,11 @@ class provider implements
 
     public static function get_users_in_context(userlist $userlist) {
         $context = $userlist->get_context();
-        if (!$context instanceof context_block) {
-            return;
-        }
 
         $sql = "SELECT lsl.userid
                 FROM {block_timestat} bt
                 JOIN {logstore_standard_log} lsl ON bt.log_id = lsl.id
-                WHERE lsl.contextinstanceid = :contextid";
+                WHERE lsl.contextid = :contextid";
         $params = ['contextid' => $context->id];
         $userlist->add_from_sql('userid', $sql, $params);
     }
@@ -64,7 +60,7 @@ class provider implements
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
 
-        $sql = "SELECT lsl.contextinstanceid
+        $sql = "SELECT DISTINCT lsl.contextid
                 FROM {block_timestat} bt
                 JOIN {logstore_standard_log} lsl ON bt.log_id = lsl.id
                 WHERE lsl.userid = :userid";
@@ -82,7 +78,7 @@ class provider implements
         $data = [];
         $userid = (int)$contextlist->get_user()->id;
 
-        $sql = "SELECT lsl.id, lsl.courseid, bt.timespent, lsl.timecreated AS timestart, lsl.contextinstanceid
+        $sql = "SELECT lsl.id AS logid, lsl.courseid, bt.timespent, lsl.timecreated AS timestart, lsl.contextid
             FROM {block_timestat} bt
             JOIN {logstore_standard_log} lsl ON bt.log_id = lsl.id
             WHERE lsl.userid = :userid";
@@ -90,9 +86,9 @@ class provider implements
         $results = $DB->get_records_sql($sql, ['userid' => $userid]);
 
         foreach ($results as $result) {
-            $data[$result->contextinstanceid][] =
+            $data[$result->contextid][] =
                 (object)[
-                    'log_id' => $result->log_id,
+                    'log_id' => $result->logid,
                     'timespent' => $result->timespent,
                     'timestart' => transform::datetime($result->timestart),
                 ];
@@ -100,8 +96,10 @@ class provider implements
 
         if (!empty($data)) {
             foreach ($contextlist as $context) {
-                // filter data for this contextinstanceid, get data for this context $data[$context->instanceid]
-                $contextdata = (object)['block_timestat' => $data[$context->instanceid]];
+                if (empty($data[$context->id])) {
+                    continue;
+                }
+                $contextdata = (object)['block_timestat' => $data[$context->id]];
                 writer::with_context($context)->export_data(
                     [get_string('privacy:metadata:block_timestat', 'block_timestat')],
                     $contextdata
@@ -118,17 +116,15 @@ class provider implements
      */
     public static function delete_data_for_all_users_in_context(context $context) {
         global $DB;
-        if ($context instanceof \context_course) {
-            $sql = "SELECT bt.id
-                    FROM {block_timestat} bt
-                    JOIN {logstore_standard_log} lsl ON bt.log_id = lsl.id
-                    WHERE lsl.contextinstanceid = :contextid";
-            $params = ['contextid' => $context->id];
-            $records = $DB->get_records_sql($sql, $params);
+        $sql = "SELECT bt.id
+                FROM {block_timestat} bt
+                JOIN {logstore_standard_log} lsl ON bt.log_id = lsl.id
+                WHERE lsl.contextid = :contextid";
+        $params = ['contextid' => $context->id];
+        $records = $DB->get_records_sql($sql, $params);
 
-            foreach ($records as $record) {
-                $DB->delete_records('block_timestat', ['id' => $record->id]);
-            }
+        foreach ($records as $record) {
+            $DB->delete_records('block_timestat', ['id' => $record->id]);
         }
     }
 
@@ -146,7 +142,7 @@ class provider implements
         $sql = "SELECT bt.id
                 FROM {block_timestat} bt
                 JOIN {logstore_standard_log} lsl ON bt.log_id = lsl.id
-                WHERE lsl.userid = :userid AND lsl.contextinstanceid $insql";
+                WHERE lsl.userid = :userid AND lsl.contextid $insql";
         $params = ['userid' => $user->id] + $inparams;
         $records = $DB->get_records_sql($sql, $params);
 
