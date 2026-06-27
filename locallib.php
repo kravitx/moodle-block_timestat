@@ -595,7 +595,10 @@ function block_timestat_report_log_print_selector_form($course, $selecteduser = 
     echo html_writer::label(get_string('sortby', 'block_timestat'), 'menusort', false, ['class' => 'accesshide']);
     echo html_writer::select($sortoptions, 'sort', $sort, false);
     $mform = new block_timestat_calendar();
-    $mform->set_data(['datefrom' => $course->startdate]);
+    $mform->set_data([
+        'datefrom' => $course->startdate,
+        'dateto' => time(),
+    ]);
     $mform->display();
     echo '</div>';
     echo '</form>';
@@ -662,7 +665,7 @@ function block_timestat_print_log($course, $user = 0, $datefrom = 0, $dateto = 0
     $table->align = ['right', 'left', 'left'];
     $table->head = [
             get_string('fullnameuser'),
-            get_string('time'),
+            get_string('timespent', 'block_timestat'),
 
     ];
     $table->data = [];
@@ -958,7 +961,7 @@ function block_timestat_print_log_xls($course, $user, $datefrom, $dateto, $modna
     $workbook->send($filename);
 
     $worksheet = [];
-    $headers = [get_string('fullnameuser'), get_string('time')];
+    $headers = [get_string('fullnameuser'), get_string('timespent', 'block_timestat')];
 
     // Creating worksheets.
     for ($wsnumber = 1; $wsnumber <= $nropages; $wsnumber++) {
@@ -1031,7 +1034,7 @@ function block_timestat_print_log_csv($course, $user, $datefrom, $dateto, $modna
 
     $csvexport = new csv_export_writer();
     $csvexport->set_filename('timestat_logs');
-    $csvexport->add_data([get_string('fullnameuser'), get_string('time')]);
+    $csvexport->add_data([get_string('fullnameuser'), get_string('timespent', 'block_timestat')]);
     $showfullnames = has_capability('moodle/site:viewfullnames', context_course::instance($course->id));
 
     if (empty($logs['logs'])) {
@@ -1077,6 +1080,30 @@ function block_timestat_get_sort_sql(string $sort): string {
     ];
 
     return $allowed[$sort] ?? $allowed['timespent_desc'];
+}
+
+/**
+ * Function to convert a number of seconds to a digital clock string.
+ *
+ * Examples: 05:12:44, 1d 03:14:22
+ *
+ * @param int $seconds
+ * @return string
+ */
+function block_timestat_seconds_to_clocktime($seconds) {
+    $seconds = max(0, (int) $seconds);
+    $days = intdiv($seconds, 86400);
+    $remaining = $seconds % 86400;
+    $hours = intdiv($remaining, 3600);
+    $minutes = intdiv($remaining % 3600, 60);
+    $clockseconds = $remaining % 60;
+
+    $clock = sprintf('%02d:%02d:%02d', $hours, $minutes, $clockseconds);
+    if ($days > 0) {
+        return $days . 'd ' . $clock;
+    }
+
+    return $clock;
 }
 
 /**
@@ -1165,40 +1192,46 @@ function block_timestat_get_user_last_log_by_contextid(int $contextid): ?stdClas
  * @throws dml_exception
  */
 function block_timestat_build_tracking_payload(?moodle_page $page = null, ?int $userid = null): ?array {
-    global $PAGE, $USER;
+    global $PAGE, $USER, $COURSE;
 
     $page = $page ?? $PAGE;
+    $course = $page->course ?? $COURSE;
+
     $userid = $userid ?? (int)$USER->id;
     if (empty($userid) || !isloggedin() || isguestuser()) {
         return null;
     }
 
-    if (empty($page->course) || empty($page->course->id) || (int)$page->course->id === SITEID) {
+    if (empty($course) || empty($course->id) || (int)$course->id === SITEID) {
         return null;
     }
 
-    $coursecontext = context_course::instance($page->course->id);
-    if (!has_capability('block/timestat:view', $coursecontext)) {
+    $coursecontext = context_course::instance($course->id);
+    if (!has_capability('block/timestat:view', $coursecontext, $userid)) {
         return null;
     }
 
-    if (!is_enrolled($coursecontext, $USER, '', true)) {
+    if (!block_timestat_should_track_user($coursecontext, $userid)) {
         return null;
     }
 
     $trackingcontext = !empty($page->cm) ? $page->cm->context : $coursecontext;
     $config = get_config('block_timestat');
+    $shouldtrack = block_timestat_should_track_user($coursecontext, $userid);
+    $canseetimer = has_capability('block/timestat:viewtimer', $coursecontext, $userid);
+    $shouldseetimer = $shouldtrack && ($canseetimer || ($config->showtimer ?? false));
 
     return [
         'contextid' => (int)$trackingcontext->id,
-        'courseid' => (int)$page->course->id,
-        'initialseconds' => block_timestat_get_user_course_timespent((int)$page->course->id, $userid),
-        'showtimer' => (bool)($config->showtimer ?? false),
+        'courseid' => (int)$course->id,
+        'initialseconds' => block_timestat_get_user_course_timespent((int)$course->id, $userid),
+        'showtimer' => $shouldseetimer,
         'config' => [
             'showtimer' => (bool)($config->showtimer ?? false),
             'loginterval' => (int)($config->loginterval ?? 10),
             'inactivitytime' => (int)($config->inactivitytime ?? 30),
             'inactivitytime_small' => (int)($config->inactivitytime_small ?? 30),
+            'ignoreinactivity' => (bool)($config->ignoreinactivity ?? false),
         ],
     ];
 }
@@ -1229,8 +1262,15 @@ function block_timestat_render_tracking_bootstrap(?moodle_page $page = null): st
     }
 
     $trackingrendered = true;
-    $script = "require(['block_timestat/event_emiiter'], function(module) { module.init($jsonpayload); });";
-    return html_writer::script($script);
+    $attributes = [
+        'class' => 'd-none',
+        'data-timestat-payload' => base64_encode($jsonpayload),
+    ];
+    $trackerurl = new moodle_url('/blocks/timestat/js/tracker.js', [
+        'v' => get_config('block_timestat', 'version'),
+    ]);
+
+    return html_writer::tag('span', '', $attributes) . html_writer::script('', $trackerurl);
 }
 
 /**
@@ -1243,4 +1283,59 @@ function block_timestat_get_max_reportable_seconds(): int {
     $loginterval = (int)($config->loginterval ?? 10);
     $loginterval = max(10, $loginterval);
     return $loginterval * 2;
+}
+
+/**
+ * Check if the user has a role of a specific archetype in a context.
+ *
+ * @param context $context
+ * @param int $userid
+ * @param string $archetype
+ * @return bool
+ */
+function block_timestat_has_role_archetype(context $context, int $userid, string $archetype): bool {
+    $roles = get_user_roles($context, $userid, true);
+    if (empty($roles)) {
+        return false;
+    }
+    foreach ($roles as $role) {
+        if (isset($role->archetype) && $role->archetype === $archetype) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Determine if a user should have their time tracked in a course.
+ *
+ * @param context $coursecontext
+ * @param int $userid
+ * @return bool
+ */
+function block_timestat_should_track_user(context $coursecontext, int $userid): bool {
+    // Site admins are never tracked.
+    if (is_siteadmin($userid)) {
+        return false;
+    }
+
+    // Check if the user is enrolled.
+    if (!is_enrolled($coursecontext, $userid, '', true)) {
+        return false;
+    }
+
+    $config = get_config('block_timestat');
+
+    // Check if the user has editing teacher role.
+    if (block_timestat_has_role_archetype($coursecontext, $userid, 'editingteacher')) {
+        return !empty($config->trackeditingteachers);
+    }
+
+    // Check if the user has non-editing teacher role.
+    if (block_timestat_has_role_archetype($coursecontext, $userid, 'teacher')) {
+        return !empty($config->trackteachers);
+    }
+
+    // By default, students and other roles enrolled are tracked.
+    return true;
 }

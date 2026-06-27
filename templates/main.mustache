@@ -38,11 +38,11 @@
 {{#shouldseetimer}}
     <div class='timer-container mb-1'>
         <div class='timer-display w-100'>
-            <p class='h3' id='timer' data-initial-seconds='{{initialseconds}}'>{{#str}}loading, block_timestat{{/str}}</p>
+            <p class='h3' id='timer' data-initial-seconds='{{initialseconds}}'>{{initialtimeclock}}</p>
             <div class="moreinfo d-none">
                 <div class="info-text">
                     <span class='info-label'>{{#str}}reportedtime, block_timestat{{/str}}: </span>
-                    <span class='info-value' id='reportedtime'>00:00:00</span>
+                    <span class='info-value' id='reportedtime'>{{initialtimeclock}}</span>
                 </div>
                 <div class="info-text">
                     <span class='info-label'>{{#str}}inactivitytime, block_timestat{{/str}}: </span>
@@ -50,7 +50,7 @@
                 </div>
                 <div class="info-text">
                     <span class='info-label'>{{#str}}summary, block_timestat{{/str}}: </span>
-                    <span class='info-value'>{{initialtimestring}}</span>
+                    <span class='info-value'>{{initialtimeclock}}</span>
                 </div>
             </div>
         </div>
@@ -64,3 +64,7 @@
         </a>
     </div>
 {{/shouldseereport}}
+
+{{#hastracking}}
+    <span class="d-none" data-timestat-payload="{{trackingpayload}}"></span>
+{{/hastracking}}

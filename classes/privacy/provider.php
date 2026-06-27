@@ -23,6 +23,28 @@ class provider implements
             ],
             'privacy:metadata:block_timestat'
         );
+        $collection->add_database_table(
+            'block_timestat_session',
+            [
+                'userid' => 'privacy:metadata:block_timestat_session:userid',
+                'courseid' => 'privacy:metadata:block_timestat_session:courseid',
+                'clientid' => 'privacy:metadata:block_timestat_session:clientid',
+                'reportedseconds' => 'privacy:metadata:block_timestat_session:reportedseconds',
+                'lastsequence' => 'privacy:metadata:block_timestat_session:lastsequence',
+                'active' => 'privacy:metadata:block_timestat_session:active',
+                'timemodified' => 'privacy:metadata:block_timestat_session:timemodified',
+            ],
+            'privacy:metadata:block_timestat_session'
+        );
+        $collection->add_database_table(
+            'block_timestat_account',
+            [
+                'userid' => 'privacy:metadata:block_timestat_account:userid',
+                'courseid' => 'privacy:metadata:block_timestat_account:courseid',
+                'accounteduntil' => 'privacy:metadata:block_timestat_account:accounteduntil',
+            ],
+            'privacy:metadata:block_timestat_account'
+        );
         return $collection;
     }
 
@@ -35,6 +57,14 @@ class provider implements
                 WHERE lsl.contextid = :contextid";
         $params = ['contextid' => $context->id];
         $userlist->add_from_sql('userid', $sql, $params);
+        if ($context->contextlevel === CONTEXT_COURSE) {
+            $userlist->add_from_sql('userid',
+                'SELECT userid FROM {block_timestat_session} WHERE courseid = :sessioncourseid',
+                ['sessioncourseid' => $context->instanceid]);
+            $userlist->add_from_sql('userid',
+                'SELECT userid FROM {block_timestat_account} WHERE courseid = :accountcourseid',
+                ['accountcourseid' => $context->instanceid]);
+        }
     }
 
     /**
@@ -55,6 +85,8 @@ class provider implements
         foreach ($records as $record) {
             $DB->delete_records('block_timestat', ['id' => $record->id]);
         }
+        $DB->delete_records_select('block_timestat_session', "userid $insql", $inparams);
+        $DB->delete_records_select('block_timestat_account', "userid $insql", $inparams);
     }
 
     public static function get_contexts_for_userid(int $userid): contextlist {
@@ -66,6 +98,14 @@ class provider implements
                 WHERE lsl.userid = :userid";
         $params = ['userid' => $userid];
         $contextlist->add_from_sql($sql, $params);
+
+        $contextlist->add_from_sql(
+            'SELECT ctx.id
+               FROM {context} ctx
+               JOIN {block_timestat_session} bts ON bts.courseid = ctx.instanceid
+              WHERE ctx.contextlevel = :contextlevel AND bts.userid = :sessionuserid',
+            ['contextlevel' => CONTEXT_COURSE, 'sessionuserid' => $userid]
+        );
 
         return $contextlist;
     }
@@ -126,6 +166,10 @@ class provider implements
         foreach ($records as $record) {
             $DB->delete_records('block_timestat', ['id' => $record->id]);
         }
+        if ($context->contextlevel === CONTEXT_COURSE) {
+            $DB->delete_records('block_timestat_session', ['courseid' => $context->instanceid]);
+            $DB->delete_records('block_timestat_account', ['courseid' => $context->instanceid]);
+        }
     }
 
     /**
@@ -148,6 +192,17 @@ class provider implements
 
         foreach ($records as $record) {
             $DB->delete_records('block_timestat', ['id' => $record->id]);
+        }
+        $courseids = $DB->get_fieldset_select('context', 'instanceid',
+            'contextlevel = :courselevel AND id ' . $insql,
+            ['courselevel' => CONTEXT_COURSE] + $inparams);
+        if ($courseids) {
+            [$courseinsql, $courseparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'course');
+            $courseparams['trackinguserid'] = $user->id;
+            $DB->delete_records_select('block_timestat_session',
+                "userid = :trackinguserid AND courseid $courseinsql", $courseparams);
+            $DB->delete_records_select('block_timestat_account',
+                "userid = :trackinguserid AND courseid $courseinsql", $courseparams);
         }
         return count($records);
     }

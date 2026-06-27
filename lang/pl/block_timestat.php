@@ -15,25 +15,57 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- *
- * Lang strings for the timestat block.
+ * Polish language strings for the timestat block.
  *
  * @package    block_timestat
- * @copyright  2014 Barbara Dębska, Łukasz Sanokowski, Łukasz Musiał
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 $string['blockname'] = 'Timestat';
 $string['pluginname'] = 'Timestat';
-$string['blocktitle'] = 'Timestat';
-$string['nologs'] = 'Nie znaleziono żadnych logów!';
-$string['calculate'] = 'Oblicz czas';
-$string['link'] = 'Oblicz czas';
-$string['summary'] = 'Czas całkowity';
+$string['blocktitle'] = 'Czas polaczony z kursem';
+$string['nologs'] = 'Nie znaleziono zadnych logow.';
+$string['calculate'] = 'Oblicz';
+$string['link'] = 'Oblicz';
+$string['viewreport'] = 'Zobacz raport';
+$string['summary'] = 'Calkowity czas kursu';
 $string['start'] = 'Od:';
 $string['end'] = 'Do:';
 $string['days'] = ' dni ';
 $string['hours'] = ' godzin ';
 $string['minuts'] = ' minut ';
 $string['seconds'] = ' sekund ';
-$string['choosetimeperiod'] = 'Wskaż przedział czasu';
+$string['time'] = 'Czas';
+$string['timespent'] = 'Czas spedzony';
+$string['choosetimeperiod'] = 'Wybierz okres czasu';
+$string['loginterval'] = 'Interwal zapisu (sekundy)';
+$string['loginterval_desc'] = 'Interwal czasu, w ktorym aktywnosc uzytkownika jest zapisywana. Minimalna wartosc to 10 sekund.';
+$string['inactivitytime'] = 'Czas bezczynnosci (duze ekrany) (sekundy)';
+$string['inactivitytime_desc'] = 'Liczba sekund, po ktorych uzytkownik jest uznawany za nieaktywnego. Minimalna wartosc to 10 sekund.';
+$string['inactivitytime_small'] = 'Czas bezczynnosci (male ekrany)';
+$string['inactivitytime_small_desc'] = 'Liczba sekund, po ktorych uzytkownik jest uznawany za nieaktywnego na malych ekranach. Minimalna wartosc to 10 sekund.';
+$string['ignoreinactivity'] = 'Ignoruj bezczynnosc';
+$string['ignoreinactivity_desc'] = 'Jesli wlaczone, zliczanie czasu trwa tak dlugo, jak strona pozostaje otwarta, nawet bez interakcji uzytkownika.';
+$string['loginterval_help'] = 'Interwal czasu, w ktorym aktywnosc uzytkownika jest zapisywana.';
+$string['showtimer'] = 'Pokaz licznik';
+$string['showtimer_desc'] = 'Jesli wlaczone, licznik czasu bedzie widoczny dla wszystkich zapisanych uzytkownikow. W przeciwnym razie zobacza go tylko uzytkownicy z uprawnieniem "block/timestat:viewtimer".';
+$string['reportedtime'] = 'Zapisany czas';
+$string['loading'] = 'Ladowanie...';
+$string['notrackinglog'] = 'Nie znaleziono prawidlowego wpisu sledzenia dla tego zadania.';
+$string['timestat:viewreport'] = 'Zobacz raport';
+$string['timestat:viewtimer'] = 'Zobacz licznik';
+$string['timestat:addinstance'] = 'Dodaj nowy blok Timestat';
+$string['timestat:view'] = 'Zobacz blok Timestat';
+$string['privacy:metadata:block_timestat'] = 'Informacje o czasie spedzonym przez uzytkownika w konkretnym wpisie logu.';
+$string['privacy:metadata:block_timestat:log_id'] = 'Identyfikator logu powiazanego z wpisem uzytkownika.';
+$string['privacy:metadata:block_timestat:timespent'] = 'Czas spedzony przez uzytkownika w tym wpisie logu.';
+$string['selectauser'] = 'Wybierz uzytkownika';
+$string['sortby'] = 'Sortuj wedlug';
+$string['sort_timespent_desc'] = 'Czas spedzony (od najwiekszego)';
+$string['sort_lastname_asc'] = 'Nazwisko';
+$string['sort_firstname_asc'] = 'Imie';
+$string['trackeditingteachers'] = 'Śledź nauczycieli z uprawnieniami edycji';
+$string['trackeditingteachers_desc'] = 'Zezwalaj na śledzenie czasu dla użytkowników z rolą nauczyciela z uprawnieniami edycji.';
+$string['trackteachers'] = 'Śledź nauczycieli bez uprawnień edycji';
+$string['trackteachers_desc'] = 'Zezwalaj na śledzenie czasu dla użytkowników z rolą nauczyciela bez uprawnień edycji.';
+$string['err_min10'] = 'Wartość musi być liczbą większą lub równą 10.';

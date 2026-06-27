@@ -1,36 +1,101 @@
 # Timestat block for Moodle
 
-This block measure time of real activity done by Moodle users.
+Timestat is a Moodle block that measures active time spent by users inside a course.
+
+## Requirements
+
+- Moodle 3.11 or later
+- Plugin release: 2.0.17
 
 ## Installation
 
-Install block in standard way (copy it to '/moodle/blocks' folder and click 'Notifications' in admin panel) or install it directly from the Admin panel.
+Install the block in the standard Moodle way:
 
-## Usage
+1. Copy the plugin to `blocks/timestat`.
+2. Visit `Site administration > Notifications`.
 
-The block only counts the time on the pages to which it has been added, so you need to add the block on the pages where you want to count the time. If you want to add the block on the course page and on all activity pages at once, please refer to the following documentation:
+You can also install it from the Moodle administration UI as a ZIP package.
+
+## What it does
+
+- Tracks active time on pages where the block is available.
+- Pauses tracking after a configurable inactivity period based on browser activity.
+- Can optionally ignore inactivity and keep counting while the page stays open.
+- Shows an optional visual timer with the accumulated course time.
+- Provides a course report with filters for user, group, date range and activity.
+- Supports CSV and Excel exports from the report page.
+- Keeps one authoritative course total per user even when several tabs or browser windows are open.
+- Prevents duplicate counting caused by overlapping requests, page changes or retries.
+
+## How tracking works
+
+The block only tracks time on pages where it has been added. If you want the block to be available on the course page and activity pages, make it sticky throughout the course:
+
 https://docs.moodle.org/400/en/Block_settings#Making_a_block_sticky_throughout_a_course
 
-The block accounts for student *inactivity*, identified by no interactions such as clicks or scrolling. To prevent counting time during periods of inactivity, the tracking feature automatically pauses when a student is inactive for an extended period. You can customize the maximum inactivity time in the settings. It's also possible to adjust how often the recorded time is saved.
+For quiz attempt pages, enable `Show blocks during the attempt` in the quiz appearance settings.
 
-The block offers a *visual time counter*, visible to users with specific permissions (block/timestat:viewtimer) or to all users enrolled in the course, if enabled in the settings. *Time is tracked even if the block or counter isn't visible to a student*. Additionally, the block includes a link to a detailed *report* on time spent, with filters for course, activity, and user. Initially, only roles such as editing teachers, teachers, course creators, managers, and admins can access this report. The 'block/timestat:viewreport' capability allows extending access to other roles.
+Time can be tracked even when the visual counter is not shown to the learner. The visible timer is synchronized with the server-side course total so that inactive tabs stay up to date while another tab remains active.
 
-To use the block within the *Quiz attempt page*, configure the quiz settings to 'Show blocks during the attempt' by going to Quiz > Edit Settings > Appearance > Show more.
+## Permissions
 
-You can access the plugin *settings* from *Site Administration > Plugins > Blocks > Timestat*.
+Main capabilities:
 
-## More information
+- `block/timestat:view`: allows the block and tracking logic to be used in the course.
+- `block/timestat:viewreport`: allows access to the detailed report.
+- `block/timestat:viewtimer`: allows viewing the visual timer when it is not globally enabled.
+- `block/timestat:addinstance`: allows adding the block to a page.
+
+By default, students can be tracked, while report access is limited to teaching and management roles.
+
+## Configuration
+
+Plugin settings are available at `Site administration > Plugins > Blocks > Timestat`.
+
+Current settings include:
+
+- `Show timer`
+- `Log interval`
+- `Inactivity time (big screens)`
+- `Inactivity time (small screens)`
+- `Ignore inactivity`
+- `Track editing teachers`
+- `Track teachers`
+
+## Stored data and privacy
+
+The plugin stores:
+
+- time spent records linked to tracked log entries
+- browser session state used to avoid duplicate counting
+- shared per-user, per-course tracking state used to merge simultaneous browser sessions
+
+Privacy metadata is implemented in `classes/privacy/provider.php`.
+
+## Recent changes
+
+Recent 2.0.x updates improved tracking reliability:
+
+- idempotent reporting across page changes and request retries
+- one shared course timer per user across multiple browsers or tabs
+- synchronization of the visible timer with the authoritative server total
+
+See `changelog.txt` for the full history.
+
+## Credits
 
 The version of the plugin for Moodle 2.9 and earlier was developed by:
-Barbara Dębska
-Łukasz Musiał
-Łukasz Sanokowski
 
-Upgrade from 1.9 to 2.5 version was made thanks to contribution of:
-Classroom Revolution
-Lib Ertea
-Mart van der Niet
-Joseph Thibault
+- Barbara Debska
+- Lukasz Musial
+- Lukasz Sanokowski
+
+Upgrade from 1.9 to 2.5 was made thanks to contributions from:
+
+- Classroom Revolution
+- Lib Ertea
+- Mart van der Niet
+- Joseph Thibault
 
 ## License
 

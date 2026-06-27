@@ -24,21 +24,43 @@
 
 defined('MOODLE_INTERNAL') || die;
 
+if (!class_exists('block_timestat_admin_setting_min10')) {
+    class block_timestat_admin_setting_min10 extends admin_setting_configtext {
+        public function validate($data) {
+            if (!is_numeric($data) || (int)$data < 10) {
+                return get_string('err_min10', 'block_timestat');
+            }
+            return parent::validate($data);
+        }
+    }
+}
+
 if ($ADMIN->fulltree) {
     $settings->add(new admin_setting_configcheckbox('block_timestat/showtimer',
         get_string('showtimer', 'block_timestat'),
         get_string('showtimer_desc', 'block_timestat'), 0));
 
-    $settings->add(new admin_setting_configtext('block_timestat/loginterval',
+    $settings->add(new block_timestat_admin_setting_min10('block_timestat/loginterval',
         get_string('loginterval', 'block_timestat'),
         get_string('loginterval_desc', 'block_timestat'), 15, PARAM_INT));
 
-    $settings->add(new admin_setting_configtext('block_timestat/inactivitytime',
+    $settings->add(new block_timestat_admin_setting_min10('block_timestat/inactivitytime',
         get_string('inactivitytime', 'block_timestat'),
         get_string('inactivitytime_desc', 'block_timestat'), 30, PARAM_INT));
 
-    $settings->add(new admin_setting_configtext('block_timestat/inactivitytime_small',
+    $settings->add(new block_timestat_admin_setting_min10('block_timestat/inactivitytime_small',
         get_string('inactivitytime_small', 'block_timestat'),
         get_string('inactivitytime_small_desc', 'block_timestat'), 30, PARAM_INT));
-}
 
+    $settings->add(new admin_setting_configcheckbox('block_timestat/ignoreinactivity',
+        get_string('ignoreinactivity', 'block_timestat'),
+        get_string('ignoreinactivity_desc', 'block_timestat'), 0));
+
+    $settings->add(new admin_setting_configcheckbox('block_timestat/trackeditingteachers',
+        get_string('trackeditingteachers', 'block_timestat'),
+        get_string('trackeditingteachers_desc', 'block_timestat'), 0));
+
+    $settings->add(new admin_setting_configcheckbox('block_timestat/trackteachers',
+        get_string('trackteachers', 'block_timestat'),
+        get_string('trackteachers_desc', 'block_timestat'), 0));
+}

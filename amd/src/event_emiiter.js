@@ -16,10 +16,7 @@ export const init = (trackingData, legacyConfig = null) => {
     }
 
     window.blockTimestatTracker = window.blockTimestatTracker || {};
-    if (window.blockTimestatTracker[payload.contextid]) {
-        return;
-    }
-    window.blockTimestatTracker[payload.contextid] = true;
+    const existingTracker = window.blockTimestatTracker[payload.contextid] || null;
 
     const reportInterval = getReportInterval(payload.config || {});
     const inactiveInterval = getInactiveInterval(payload.config || {});
@@ -28,11 +25,72 @@ export const init = (trackingData, legacyConfig = null) => {
     const $timer = document.getElementById('timer');
     const $reportedtime = document.getElementById('reportedtime');
     const $inactivitytime = document.getElementById('inactivitytime');
+    const hasVisibleTimer = !!$timer;
+
+    if (existingTracker) {
+        if (hasVisibleTimer && !existingTracker.hasVisibleTimer) {
+            existingTracker.bindTimerElements($timerDisplay, $timer, $reportedtime, $inactivitytime);
+        }
+        return;
+    }
+
     const initialSeconds = Number.isInteger(payload.initialseconds) ?
         payload.initialseconds :
         ($timer ? parseInt($timer.dataset.initialSeconds || '0', 10) : 0);
 
     const inactiveClass = 'text-black-50';
+    const trackerState = {
+        hasVisibleTimer: false,
+        bindTimerElements: null,
+        observeTimerElements: null,
+        timerObserver: null
+    };
+    let timerDisplay = $timerDisplay;
+    let timerElement = $timer;
+    let reportedTimeElement = $reportedtime;
+    let inactivityTimeElement = $inactivitytime;
+
+    trackerState.hasVisibleTimer = hasVisibleTimer;
+    trackerState.bindTimerElements = ($newTimerDisplay, $newTimer, $newReportedTime, $newInactivityTime) => {
+        if (trackerState.timerObserver) {
+            trackerState.timerObserver.disconnect();
+            trackerState.timerObserver = null;
+        }
+        timerDisplay = $newTimerDisplay;
+        timerElement = $newTimer;
+        reportedTimeElement = $newReportedTime;
+        inactivityTimeElement = $newInactivityTime;
+        trackerState.hasVisibleTimer = !!$newTimer;
+        if (timerElement) {
+            timerElement.textContent = formatTime(initialSeconds + (screentime.log.body || 0));
+        }
+        if (reportedTimeElement) {
+            reportedTimeElement.textContent = formatTime(initialSeconds + (screentime.log.body || 0));
+        }
+        if (inactivityTimeElement) {
+            inactivityTimeElement.textContent = formatTime(screentime.inactivityTimer);
+        }
+    };
+    trackerState.observeTimerElements = () => {
+        if (trackerState.hasVisibleTimer || trackerState.timerObserver || !payload.showtimer || !document.body) {
+            return;
+        }
+        trackerState.timerObserver = new MutationObserver(() => {
+            const $observedTimerDisplay = document.querySelector('.timer-display');
+            const $observedTimer = document.getElementById('timer');
+            if (!$observedTimer) {
+                return;
+            }
+            trackerState.bindTimerElements(
+                $observedTimerDisplay,
+                $observedTimer,
+                document.getElementById('reportedtime'),
+                document.getElementById('inactivitytime')
+            );
+        });
+        trackerState.timerObserver.observe(document.body, {childList: true, subtree: true});
+    };
+
     const screentime = new ScreenTime({
         field: {name: 'content', selector: 'body'},
         reportInterval: reportInterval,
@@ -54,35 +112,38 @@ export const init = (trackingData, legacyConfig = null) => {
             } catch (err) {
                 // Silently fail; service errors are not shown in UI.
             }
-            if (!$reportedtime) {
+            if (!reportedTimeElement) {
                 return;
             }
             const totalSeconds = initialSeconds + (log.body || 0);
-            $reportedtime.textContent = formatTime(totalSeconds);
+            reportedTimeElement.textContent = formatTime(totalSeconds);
         },
         everySecondCallback: (log) => {
             const sessionSeconds = log['body'] || 0;
             const seconds = initialSeconds + sessionSeconds;
-            if ($timer) {
-                $timer.textContent = formatTime(seconds);
-                if ($inactivitytime) {
-                    $inactivitytime.textContent = formatTime(screentime.inactivityTimer);
+            if (timerElement) {
+                timerElement.textContent = formatTime(seconds);
+                if (inactivityTimeElement) {
+                    inactivityTimeElement.textContent = formatTime(screentime.inactivityTimer);
                 }
             }
         },
         onInactivity: () => {
-            if (!$timerDisplay) {
+            if (!timerDisplay) {
                 return;
             }
-            $timerDisplay.classList.add(inactiveClass);
+            timerDisplay.classList.add(inactiveClass);
         },
         onStart: () => {
-            if (!$timerDisplay) {
+            if (!timerDisplay) {
                 return;
             }
-            $timerDisplay.classList.remove(inactiveClass);
+            timerDisplay.classList.remove(inactiveClass);
         }
     });
+
+    window.blockTimestatTracker[payload.contextid] = trackerState;
+    trackerState.observeTimerElements();
 };
 
 const normalizePayload = (trackingData, legacyConfig) => {
@@ -105,6 +166,9 @@ const formatTime = (seconds) => {
 };
 
 const getInactiveInterval = (config) => {
+    if (config.ignoreinactivity) {
+        return Number.POSITIVE_INFINITY;
+    }
     const isMobile = window.matchMedia("only screen and (max-width: 760px)").matches;
     let {inactivitytime, inactivitytime_small} = config;
     inactivitytime = isMobile ? inactivitytime_small : inactivitytime;

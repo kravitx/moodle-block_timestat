@@ -1,3 +1,15 @@
+27.06.2026
+2.0.17
+Synchronise the visible timer against the authoritative course total.
+Keep inactive browsers updated while another browser remains active.
+Fix overlapping and throttled browser intervals without double counting.
+
+27.06.2026
+2.0.16
+Make tracking idempotent across page changes and request retries.
+Keep one shared course timer per user when several browsers are open.
+Synchronise inactive browser displays with the authoritative server total.
+
 11.02.2024
 Refactor Screentime to remove jQuery dependency and add more detailed callbacks
 Enhanced to detect user inactivity.

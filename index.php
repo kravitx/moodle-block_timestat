@@ -152,6 +152,18 @@ $context = context_course::instance($course->id);
 
 require_capability('block/timestat:viewreport', $context);
 
+if (!$course->startdate || ($course->startdate > time())) {
+    $course->startdate = $course->timecreated;
+}
+
+if ($datefrom === 0) {
+    $datefrom = $course->startdate;
+}
+
+if ($dateto === 0) {
+    $dateto = time();
+}
+
 if (!empty($page)) {
     $strlogs = get_string('logs') . ": " . get_string('page', 'report_log', $page + 1);
 } else {
@@ -203,17 +215,19 @@ if (!empty($chooselog)) {
                 admin_externalpage_setup('reportlog');
                 $PAGE->set_title($course->shortname . ': ' . $strlogs);
                 $PAGE->set_heading($course->fullname);
-                $PAGE->navbar->add("Timestat");
+                $PAGE->navbar->add(get_string('blocktitle', 'block_timestat'));
                 echo $OUTPUT->header();
 
             } else {
                 $PAGE->set_title($course->shortname . ': ' . $strlogs);
                 $PAGE->set_heading($course->fullname);
-                $PAGE->navbar->add("Timestat");
+                $PAGE->navbar->add(get_string('blocktitle', 'block_timestat'));
                 echo $OUTPUT->header();
             }
 
-            echo $OUTPUT->heading(format_string($course->fullname) . ": $userinfo, $datefrominfo (" . usertimezone() . ")");
+            echo $OUTPUT->heading(
+                format_string($course->fullname) . ": $userinfo, $datefrominfo - $datetoinfo (" . usertimezone() . ")"
+            );
             block_timestat_report_log_print_mnet_selector_form($hostid, $course, $user, $datefrom, $dateto, $modid, $group,
                     $showcourses, $showusers, $logformat, $sort);
 

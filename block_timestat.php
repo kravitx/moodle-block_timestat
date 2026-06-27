@@ -26,7 +26,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/blocks/timestat/locallib.php');
 
 /**
- * Timestat block class.
+ * Course time block class.
  *
  * @package    block_timestat
  * @copyright  2014 Barbara Dębska, Łukasz Sanokowski, Łukasz Musiał
@@ -51,7 +51,7 @@ class block_timestat extends block_base {
      * @throws dml_exception
      */
     public function get_content() {
-        global $COURSE, $OUTPUT, $USER;
+        global $CFG, $COURSE, $OUTPUT, $USER;
         if ($this->content !== null) {
             return $this->content;
         }
@@ -63,20 +63,30 @@ class block_timestat extends block_base {
             return $this->content;
         }
 
-        $userisenrolled = is_enrolled($coursecontext, $USER, '', true);
+        $shouldtrack = block_timestat_should_track_user($coursecontext, $USER->id);
         $canseetimer = has_capability('block/timestat:viewtimer', $coursecontext);
         $data = new stdClass();
         $data->courseid = $COURSE->id;
-        $data->shouldseetimer = $userisenrolled && ($canseetimer || ($config->showtimer ?? false));
+        $data->shouldseetimer = $shouldtrack && ($canseetimer || ($config->showtimer ?? false));
         $data->initialseconds = block_timestat_get_user_course_timespent($COURSE->id, $USER->id);
+        $data->initialtimeclock = block_timestat_seconds_to_clocktime($data->initialseconds);
         $data->initialtimestring = block_timestat_seconds_to_stringtime($data->initialseconds);
         $data->shouldseereport = has_capability('block/timestat:viewreport', $coursecontext);
-        $this->content->text = $OUTPUT->render_from_template('block_timestat/main', $data);
 
         // Fallback for pages where the global hook is not available.
         $tracking = block_timestat_build_tracking_payload($this->page, $USER->id);
+        $data->hastracking = $tracking !== null;
+        $data->trackingjson = $tracking !== null
+            ? json_encode($tracking, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)
+            : null;
+        $data->trackingpayload = $data->trackingjson !== null ? base64_encode($data->trackingjson) : null;
+        $data->wwwroot = $CFG->wwwroot;
+        $data->pluginversion = get_config('block_timestat', 'version');
+        $this->content->text = $OUTPUT->render_from_template('block_timestat/main', $data);
+
         if ($tracking !== null) {
-            $this->page->requires->js_call_amd('block_timestat/event_emiiter', 'init', [$tracking]);
+            $trackerurl = new moodle_url('/blocks/timestat/js/tracker.js', ['v' => $data->pluginversion]);
+            $this->page->requires->js($trackerurl);
         }
 
         return $this->content;
